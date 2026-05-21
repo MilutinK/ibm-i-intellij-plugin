@@ -7,11 +7,11 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="org.jetbrains.plugins.template.toolWindow.MyToolWindowFactory"
+        <toolWindow factoryClass="com.github.milutink.ibmiintellijplugin.toolWindow.MyToolWindowFactory"
                     id="IBM i Helper"
                     anchor="right"/>
-        <postStartupActivity implementation="org.jetbrains.plugins.template.hover.IbmiHoverActivity" />
-        <projectService serviceImplementation="org.jetbrains.plugins.template.services.DatabaseService"/>
-        <projectService serviceImplementation="org.jetbrains.plugins.template.hover.IbmiHoverService"/>
+        <postStartupActivity implementation="com.github.milutink.ibmiintellijplugin.hover.IbmiHoverActivity" />
+        <projectService serviceImplementation="com.github.milutink.ibmiintellijplugin.services.DatabaseService"/>
+        <projectService serviceImplementation="com.github.milutink.ibmiintellijplugin.hover.IbmiHoverService"/>
     </extensions>
 </idea-plugin>

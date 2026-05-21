@@ -1,4 +1,4 @@
-package org.jetbrains.plugins.template.hover
+package com.github.milutink.ibmiintellijplugin.hover
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project

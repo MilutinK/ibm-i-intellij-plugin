@@ -1,4 +1,4 @@
-package org.jetbrains.plugins.template.services
+package com.github.milutink.ibmiintellijplugin.services
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service

@@ -1,9 +1,9 @@
-package org.jetbrains.plugins.template.documentation
+package com.github.milutink.ibmiintellijplugin.documentation
 
 import com.intellij.lang.documentation.AbstractDocumentationProvider
 import com.intellij.openapi.components.serviceIfCreated
 import com.intellij.psi.PsiElement
-import org.jetbrains.plugins.template.services.DatabaseService
+import com.github.milutink.ibmiintellijplugin.services.DatabaseService
 
 class IbmiDocumentationProvider : AbstractDocumentationProvider() {
 

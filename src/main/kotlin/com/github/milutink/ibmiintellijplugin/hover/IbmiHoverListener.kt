@@ -1,4 +1,4 @@
-package org.jetbrains.plugins.template.hover
+package com.github.milutink.ibmiintellijplugin.hover
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.serviceIfCreated
@@ -10,7 +10,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.Balloon
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.awt.RelativePoint
-import org.jetbrains.plugins.template.services.DatabaseService
+import com.github.milutink.ibmiintellijplugin.services.DatabaseService
 import java.awt.Point
 import javax.swing.JLabel
 import javax.swing.Timer

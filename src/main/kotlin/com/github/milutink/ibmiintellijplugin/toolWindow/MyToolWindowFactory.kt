@@ -1,4 +1,4 @@
-package org.jetbrains.plugins.template.toolWindow
+package com.github.milutink.ibmiintellijplugin.toolWindow
 
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
@@ -15,9 +15,9 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.table.JBTable
-import org.jetbrains.plugins.template.services.ColumnInfo
-import org.jetbrains.plugins.template.services.DatabaseService
-import org.jetbrains.plugins.template.services.TableInfo
+import com.github.milutink.ibmiintellijplugin.services.ColumnInfo
+import com.github.milutink.ibmiintellijplugin.services.DatabaseService
+import com.github.milutink.ibmiintellijplugin.services.TableInfo
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
