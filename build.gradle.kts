@@ -11,7 +11,7 @@ plugins {
 dependencies {
     testImplementation("junit:junit:4.13.2")
     implementation("com.h2database:h2:2.3.232")
-    implementation("net.sf.jt400:jt400:20.0.7")
+    implementation("net.sf.jt400:jt400:21.0.6")
 
     intellijPlatform {
         intellijIdea("2026.1.1")
