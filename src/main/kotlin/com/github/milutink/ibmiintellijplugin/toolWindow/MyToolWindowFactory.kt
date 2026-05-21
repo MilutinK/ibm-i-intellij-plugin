@@ -49,13 +49,12 @@ class IbmiPanel(private val project: Project) {
     private val prefs = PropertiesComponent.getInstance()
 
     // --- Connection form fields ---
-    private val testModeCheckbox = JCheckBox("Test-Modus (H2, keine IBM i nötig)", true)
     private val hostField        = JBTextField(20)
     private val portField        = JBTextField("446", 6)
     private val userField        = JBTextField(20)
     private val passwordField    = JBPasswordField().also { it.columns = 20 }
     private val schemaField      = JBTextField(20).also {
-        it.toolTipText = "Kommagetrennt, z.B. MYLIB,HRLIB  (Pflicht für IBM i — leer nur im Test-Modus)"
+        it.toolTipText = "Kommagetrennt, z.B. MYLIB,HRLIB"
     }
     private val ibmiFieldsPanel  = buildIbmiFieldsPanel()
     private val connectButton    = JButton("Verbinden")
@@ -78,7 +77,6 @@ class IbmiPanel(private val project: Project) {
     val root: JPanel = buildUI()
 
     init {
-        testModeCheckbox.isSelected = prefs.getBoolean("ibmi.testMode", true)
         hostField.text   = prefs.getValue("ibmi.host",    "")
         portField.text   = prefs.getValue("ibmi.port",    "446")
         userField.text   = prefs.getValue("ibmi.user",    "")
@@ -90,7 +88,6 @@ class IbmiPanel(private val project: Project) {
             if (savedPw != null) passwordField.text = savedPw
         }
 
-        updateFieldVisibility()
         refreshProfileComboBox()
     }
 
@@ -101,7 +98,6 @@ class IbmiPanel(private val project: Project) {
         root.add(buildConnectionPanel(), BorderLayout.NORTH)
         root.add(buildResultsPanel(),    BorderLayout.CENTER)
 
-        testModeCheckbox.addActionListener { updateFieldVisibility() }
         connectButton.addActionListener    { onConnect() }
         disconnectButton.addActionListener { onDisconnect() }
         saveProfileButton.addActionListener   { onSaveProfile() }
@@ -175,7 +171,6 @@ class IbmiPanel(private val project: Project) {
         pgbc.gridx = 3; pgbc.weightx = 0.0; profileRow.add(deleteProfileButton, pgbc)
         gbc.gridy = row++; panel.add(profileRow, gbc)
 
-        gbc.gridy = row++; panel.add(testModeCheckbox, gbc)
         gbc.gridy = row++; panel.add(ibmiFieldsPanel, gbc)
 
         // Schema / library filter — always visible
@@ -222,9 +217,17 @@ class IbmiPanel(private val project: Project) {
 
     private fun onConnect() {
         val schemas = parseSchemas()
-
-        if (!testModeCheckbox.isSelected && schemas.isEmpty()) {
+        if (schemas.isEmpty()) {
             statusLabel.text = "Bitte mindestens eine Bibliothek angeben (z.B. deinen IBM i Benutzernamen)."
+            return
+        }
+
+        val host     = hostField.text.trim()
+        val port     = portField.text.trim().ifEmpty { "446" }
+        val user     = userField.text.trim()
+        val password = String(passwordField.password)
+        if (host.isEmpty() || user.isEmpty() || password.isEmpty()) {
+            statusLabel.text = "Bitte Host, Benutzer und Passwort angeben."
             return
         }
 
@@ -233,17 +236,7 @@ class IbmiPanel(private val project: Project) {
 
         object : SwingWorker<List<TableInfo>, Void>() {
             override fun doInBackground(): List<TableInfo> {
-                if (testModeCheckbox.isSelected) {
-                    db.connectH2(schemas)
-                } else {
-                    val host     = hostField.text.trim()
-                    val port     = portField.text.trim().ifEmpty { "446" }
-                    val user     = userField.text.trim()
-                    val password = String(passwordField.password)
-                    if (host.isEmpty() || user.isEmpty() || password.isEmpty())
-                        error("Bitte Host, Benutzer und Passwort angeben.")
-                    db.connectIBMi(host, port, user, password, schemas)
-                }
+                db.connectIBMi(host, port, user, password, schemas)
                 return db.getTables()
             }
 
@@ -251,17 +244,15 @@ class IbmiPanel(private val project: Project) {
                 try {
                     val tables = get()
                     populateTableModel(tables)
-                    val mode = if (testModeCheckbox.isSelected) "H2 Test-Modus" else hostField.text.trim()
-                    val schemaInfo = " [${schemas.joinToString(",")}]".takeIf { schemas.isNotEmpty() } ?: ""
+                    val schemaInfo = " [${schemas.joinToString(",")}]"
                     val schemaCount = tables.map { it.schema }.distinct().size
                     val schemaCountStr = if (schemaCount > 1) ", $schemaCount Schemas" else ""
                     statusLabel.text = if (tables.isEmpty())
-                        "Verbunden ($mode$schemaInfo) — keine Tabellen gefunden. Bibliothek existiert, enthält aber keine SQL-Tabellen."
+                        "Verbunden ($host$schemaInfo) — keine Tabellen gefunden."
                     else
-                        "Verbunden ($mode$schemaInfo) — ${tables.size} Tabellen$schemaCountStr"
+                        "Verbunden ($host$schemaInfo) — ${tables.size} Tabellen$schemaCountStr"
                     connectButton.isEnabled    = false
                     disconnectButton.isEnabled = true
-                    testModeCheckbox.isEnabled = false
                     saveSettings()
                     updateStatusBar()
                 } catch (e: Exception) {
@@ -273,11 +264,10 @@ class IbmiPanel(private val project: Project) {
     }
 
     private fun saveSettings() {
-        prefs.setValue("ibmi.testMode", testModeCheckbox.isSelected)
-        prefs.setValue("ibmi.host",     hostField.text.trim())
-        prefs.setValue("ibmi.port",     portField.text.trim())
-        prefs.setValue("ibmi.user",     userField.text.trim())
-        prefs.setValue("ibmi.schemas",  schemaField.text.trim())
+        prefs.setValue("ibmi.host",    hostField.text.trim())
+        prefs.setValue("ibmi.port",    portField.text.trim())
+        prefs.setValue("ibmi.user",    userField.text.trim())
+        prefs.setValue("ibmi.schemas", schemaField.text.trim())
         val user     = userField.text.trim()
         val password = String(passwordField.password)
         if (user.isNotEmpty() && password.isNotEmpty()) {
@@ -295,7 +285,6 @@ class IbmiPanel(private val project: Project) {
         statusLabel.text           = "Nicht verbunden"
         connectButton.isEnabled    = true
         disconnectButton.isEnabled = false
-        testModeCheckbox.isEnabled = true
         ((columnTable.parent?.parent as? JComponent)?.border as? TitledBorder)
             ?.title = "Spalten (Tabelle auswählen)"
         updateStatusBar()
@@ -348,10 +337,6 @@ class IbmiPanel(private val project: Project) {
     private fun populateTableModel(tables: List<TableInfo>) {
         tableModel.rowCount = 0
         tables.forEach { tableModel.addRow(arrayOf(it.name, it.schema, it.description)) }
-    }
-
-    private fun updateFieldVisibility() {
-        ibmiFieldsPanel.isVisible = !testModeCheckbox.isSelected
     }
 
     private fun showTablePopup(e: MouseEvent) {
@@ -414,7 +399,6 @@ class IbmiPanel(private val project: Project) {
     }
 
     private fun loadProfile(name: String) {
-        testModeCheckbox.isSelected = prefs.getBoolean(profileKey(name, "testMode"), true)
         hostField.text   = prefs.getValue(profileKey(name, "host"),    "")
         portField.text   = prefs.getValue(profileKey(name, "port"),    "446")
         userField.text   = prefs.getValue(profileKey(name, "user"),    "")
@@ -424,7 +408,6 @@ class IbmiPanel(private val project: Project) {
             val pw = PasswordSafe.instance.getPassword(CredentialAttributes("IBM i Helper/$name", user))
             if (pw != null) passwordField.text = pw
         }
-        updateFieldVisibility()
     }
 
     private fun onSaveProfile() {
@@ -433,11 +416,10 @@ class IbmiPanel(private val project: Project) {
             JOptionPane.showMessageDialog(root, "Bitte Profilnamen eingeben.", "Profil speichern", JOptionPane.WARNING_MESSAGE)
             return
         }
-        prefs.setValue(profileKey(name, "host"),     hostField.text.trim())
-        prefs.setValue(profileKey(name, "port"),     portField.text.trim())
-        prefs.setValue(profileKey(name, "user"),     userField.text.trim())
-        prefs.setValue(profileKey(name, "schemas"),  schemaField.text.trim())
-        prefs.setValue(profileKey(name, "testMode"), testModeCheckbox.isSelected)
+        prefs.setValue(profileKey(name, "host"),    hostField.text.trim())
+        prefs.setValue(profileKey(name, "port"),    portField.text.trim())
+        prefs.setValue(profileKey(name, "user"),    userField.text.trim())
+        prefs.setValue(profileKey(name, "schemas"), schemaField.text.trim())
         val user = userField.text.trim()
         val password = String(passwordField.password)
         if (user.isNotEmpty() && password.isNotEmpty()) {
@@ -455,7 +437,7 @@ class IbmiPanel(private val project: Project) {
     private fun onDeleteProfile() {
         val name = (profileComboBox.selectedItem as? String)?.trim()?.takeIf { it.isNotBlank() } ?: return
         saveProfileNames(loadProfileNames().filter { it != name })
-        listOf("host", "port", "user", "schemas", "testMode").forEach {
+        listOf("host", "port", "user", "schemas").forEach {
             prefs.unsetValue(profileKey(name, it))
         }
         refreshProfileComboBox()

@@ -10,7 +10,6 @@ class MyPluginTest : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         db = DatabaseService(project)
-        db.connectH2(listOf("MYLIB", "HRLIB"))
     }
 
     override fun tearDown() {
@@ -18,37 +17,22 @@ class MyPluginTest : BasePlatformTestCase() {
         super.tearDown()
     }
 
-    fun testH2ConnectAndLoadTables() {
-        assertTrue("Should be connected after connectH2()", db.isConnected)
-        val tables = db.getTables()
-        assertTrue("H2 test data should contain tables", tables.isNotEmpty())
+    fun testNotConnectedByDefault() {
+        assertFalse("Should not be connected before connecting", db.isConnected)
     }
 
-    fun testTableDescriptions() {
-        db.getTables()
-        assertNotNull("CUSTTBL should have a description", db.findTableDescription("CUSTTBL"))
-        assertNotNull("ORDTBL should have a description", db.findTableDescription("ORDTBL"))
-        assertNull("Unknown table should return null", db.findTableDescription("DOESNOTEXIST"))
-    }
-
-    fun testColumnDescriptions() {
-        db.getTables()
-        assertNotNull("CUSTNBR should have a description", db.findColumnDescription("CUSTNBR"))
-        assertNotNull("ORDDAT should have a description", db.findColumnDescription("ORDDAT"))
-        assertNull("Unknown column should return null", db.findColumnDescription("DOESNOTEXIST"))
-    }
-
-    fun testSchemaFilter() {
+    fun testDisconnectWhenNotConnected() {
         db.disconnect()
-        db.connectH2(listOf("MYLIB"))
-        val tables = db.getTables()
-        assertTrue("All tables should be from MYLIB", tables.all { it.schema == "MYLIB" })
-        assertTrue("HRLIB tables should be excluded", tables.none { it.schema == "HRLIB" })
+        assertFalse("Should remain disconnected after redundant disconnect()", db.isConnected)
     }
 
-    fun testDisconnect() {
-        assertTrue(db.isConnected)
-        db.disconnect()
-        assertFalse("Should not be connected after disconnect()", db.isConnected)
+    fun testCachesEmptyWhenNotConnected() {
+        assertNull("Table cache should be empty when not connected", db.findTableDescription("CUSTTBL"))
+        assertNull("Column cache should be empty when not connected", db.findColumnDescription("CUSTNBR"))
+    }
+
+    fun testCompletionsEmptyWhenNotConnected() {
+        assertTrue("Table completions should be empty when not connected", db.getTableCompletions().isEmpty())
+        assertTrue("Column completions should be empty when not connected", db.getColumnCompletions().isEmpty())
     }
 }

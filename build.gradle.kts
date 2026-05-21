@@ -10,7 +10,6 @@ plugins {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    implementation("com.h2database:h2:2.3.232")
     implementation("net.sf.jt400:jt400:20.0.7")
 
     intellijPlatform {
