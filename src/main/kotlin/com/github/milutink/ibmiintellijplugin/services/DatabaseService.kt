@@ -5,7 +5,6 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import java.net.UnknownHostException
 import java.sql.Connection
-import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
@@ -31,7 +30,12 @@ class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposab
 
     fun connectIBMi(host: String, port: String, user: String, password: String, schemas: List<String> = emptyList()) {
         currentSchemas = schemas
-        Class.forName("com.ibm.as400.access.AS400JDBCDriver")
+        // Load driver via plugin classloader so it is found even when DriverManager uses the system classloader.
+        val driver = Class.forName(
+            "com.ibm.as400.access.AS400JDBCDriver",
+            true,
+            DatabaseService::class.java.classLoader
+        ).getDeclaredConstructor().newInstance() as java.sql.Driver
         val props = Properties().apply {
             setProperty("user", user)
             setProperty("password", password)
@@ -43,7 +47,8 @@ class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposab
         // Wrap in a Future so the overall attempt is bounded to 25 s.
         val executor = Executors.newSingleThreadExecutor()
         val future = executor.submit<Connection> {
-            DriverManager.getConnection("jdbc:as400://$host", props)
+            driver.connect("jdbc:as400://$host", props)
+                ?: throw RuntimeException("Treiber hat die URL nicht akzeptiert.")
         }
         try {
             connection = try {
