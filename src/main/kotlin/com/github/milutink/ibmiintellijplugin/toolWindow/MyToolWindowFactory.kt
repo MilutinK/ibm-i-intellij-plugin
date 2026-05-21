@@ -8,6 +8,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.openapi.wm.WindowManager
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBPasswordField
@@ -18,10 +19,15 @@ import com.intellij.ui.table.JBTable
 import com.github.milutink.ibmiintellijplugin.services.ColumnInfo
 import com.github.milutink.ibmiintellijplugin.services.DatabaseService
 import com.github.milutink.ibmiintellijplugin.services.TableInfo
+import com.github.milutink.ibmiintellijplugin.statusBar.IbmiStatusBarWidgetFactory
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.border.TitledBorder
@@ -37,7 +43,7 @@ class MyToolWindowFactory : ToolWindowFactory {
     override fun shouldBeAvailable(project: Project) = true
 }
 
-class IbmiPanel(project: Project) {
+class IbmiPanel(private val project: Project) {
 
     private val db    = project.service<DatabaseService>()
     private val prefs = PropertiesComponent.getInstance()
@@ -59,7 +65,7 @@ class IbmiPanel(project: Project) {
     // --- Results ---
     private val tableModel  = DefaultTableModel(arrayOf("Tabelle", "Schema", "Beschreibung"), 0)
     private val resultTable = JBTable(tableModel).also { it.isStriped = true }
-    private val columnModel = DefaultTableModel(arrayOf("Spalte", "Beschreibung"), 0)
+    private val columnModel = DefaultTableModel(arrayOf("Spalte", "Typ", "Beschreibung"), 0)
     private val columnTable = JBTable(columnModel).also { it.isStriped = true }
     private val searchField = JBTextField(20)
 
@@ -95,6 +101,15 @@ class IbmiPanel(project: Project) {
         resultTable.selectionModel.addListSelectionListener {
             if (!it.valueIsAdjusting) onTableSelected()
         }
+
+        resultTable.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent)  { if (e.isPopupTrigger) showTablePopup(e) }
+            override fun mouseReleased(e: MouseEvent) { if (e.isPopupTrigger) showTablePopup(e) }
+        })
+        columnTable.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent)  { if (e.isPopupTrigger) showColumnPopup(e) }
+            override fun mouseReleased(e: MouseEvent) { if (e.isPopupTrigger) showColumnPopup(e) }
+        })
 
         searchField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
             override fun insertUpdate(e: javax.swing.event.DocumentEvent?)  = applyFilter()
@@ -225,6 +240,7 @@ class IbmiPanel(project: Project) {
                     disconnectButton.isEnabled = true
                     testModeCheckbox.isEnabled = false
                     saveSettings()
+                    updateStatusBar()
                 } catch (e: Exception) {
                     statusLabel.text = "Fehler: ${e.cause?.message ?: e.message}"
                     connectButton.isEnabled = true
@@ -259,6 +275,12 @@ class IbmiPanel(project: Project) {
         testModeCheckbox.isEnabled = true
         ((columnTable.parent?.parent as? JComponent)?.border as? TitledBorder)
             ?.title = "Spalten (Tabelle auswählen)"
+        updateStatusBar()
+    }
+
+    private fun updateStatusBar() {
+        WindowManager.getInstance().getStatusBar(project)
+            ?.updateWidget(IbmiStatusBarWidgetFactory.ID)
     }
 
     private fun onTableSelected() {
@@ -272,7 +294,7 @@ class IbmiPanel(project: Project) {
                 try {
                     val cols = get()
                     columnModel.rowCount = 0
-                    cols.forEach { columnModel.addRow(arrayOf(it.columnName, it.description)) }
+                    cols.forEach { columnModel.addRow(arrayOf(it.columnName, it.dataType, it.description)) }
                     val scrollPane = columnTable.parent?.parent as? JComponent
                     (scrollPane?.border as? TitledBorder)?.title = "Spalten von $tableName ($schema)"
                     scrollPane?.repaint()
@@ -307,5 +329,39 @@ class IbmiPanel(project: Project) {
 
     private fun updateFieldVisibility() {
         ibmiFieldsPanel.isVisible = !testModeCheckbox.isSelected
+    }
+
+    private fun showTablePopup(e: MouseEvent) {
+        val row = resultTable.rowAtPoint(e.point).also {
+            if (it < 0) return
+            resultTable.setRowSelectionInterval(it, it)
+        }
+        val name = resultTable.getValueAt(row, 0) as String
+        val desc = resultTable.getValueAt(row, 2) as String
+        JPopupMenu().apply {
+            add(JMenuItem("Name kopieren")).addActionListener          { copyToClipboard(name) }
+            add(JMenuItem("Beschreibung kopieren")).addActionListener  { copyToClipboard(desc) }
+            add(JMenuItem("Beides kopieren")).addActionListener        { copyToClipboard("$name – $desc") }
+        }.show(e.component, e.x, e.y)
+    }
+
+    private fun showColumnPopup(e: MouseEvent) {
+        val row = columnTable.rowAtPoint(e.point).also {
+            if (it < 0) return
+            columnTable.setRowSelectionInterval(it, it)
+        }
+        val name = columnTable.getValueAt(row, 0) as String
+        val type = columnTable.getValueAt(row, 1) as String
+        val desc = columnTable.getValueAt(row, 2) as String
+        val typeStr = if (type.isNotBlank()) " ($type)" else ""
+        JPopupMenu().apply {
+            add(JMenuItem("Name kopieren")).addActionListener          { copyToClipboard(name) }
+            add(JMenuItem("Beschreibung kopieren")).addActionListener  { copyToClipboard(desc) }
+            add(JMenuItem("Beides kopieren")).addActionListener        { copyToClipboard("$name$typeStr – $desc") }
+        }.show(e.component, e.x, e.y)
+    }
+
+    private fun copyToClipboard(text: String) {
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
     }
 }

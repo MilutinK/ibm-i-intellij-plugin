@@ -13,5 +13,7 @@
         <postStartupActivity implementation="com.github.milutink.ibmiintellijplugin.hover.IbmiHoverActivity" />
         <projectService serviceImplementation="com.github.milutink.ibmiintellijplugin.services.DatabaseService"/>
         <projectService serviceImplementation="com.github.milutink.ibmiintellijplugin.hover.IbmiHoverService"/>
+        <statusBarWidgetFactory implementation="com.github.milutink.ibmiintellijplugin.statusBar.IbmiStatusBarWidgetFactory"
+                                id="IbmiConnectionStatus"/>
     </extensions>
 </idea-plugin>

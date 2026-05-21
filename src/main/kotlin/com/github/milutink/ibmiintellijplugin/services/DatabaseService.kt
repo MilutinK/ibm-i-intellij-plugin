@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 data class TableInfo(val name: String, val schema: String, val description: String)
-data class ColumnInfo(val tableName: String, val columnName: String, val description: String)
+data class ColumnInfo(val tableName: String, val columnName: String, val description: String, val dataType: String = "")
 
 @Service(Service.Level.PROJECT)
 class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposable {
@@ -146,11 +146,12 @@ class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposab
         val conn = connection ?: error("Keine Datenbankverbindung")
         val result = mutableListOf<ColumnInfo>()
         conn.prepareStatement(
-            """SELECT COLUMN_NAME, COLUMN_TEXT
+            """SELECT COLUMN_NAME, COLUMN_TEXT, DATA_TYPE, LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE
                FROM QSYS2.SYSCOLUMNS
                WHERE TABLE_NAME = ? AND TABLE_SCHEMA = ?
-               ORDER BY COLUMN_NAME"""
+               ORDER BY ORDINAL_POSITION, COLUMN_NAME"""
         ).apply {
+            queryTimeout = 30
             setString(1, tableName)
             setString(2, schema)
         }.executeQuery().use { rs ->
@@ -158,13 +159,34 @@ class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposab
                 result += ColumnInfo(
                     tableName   = tableName,
                     columnName  = rs.getString("COLUMN_NAME"),
-                    description = rs.getString("COLUMN_TEXT") ?: ""
+                    description = rs.getString("COLUMN_TEXT") ?: "",
+                    dataType    = formatDataType(
+                        rs.getString("DATA_TYPE") ?: "",
+                        rs.getInt("LENGTH"),
+                        rs.getInt("NUMERIC_PRECISION"),
+                        rs.getInt("NUMERIC_SCALE")
+                    )
                 )
             }
         }
         result.forEach { columnDescCache.putIfAbsent(it.columnName.uppercase(), it.description) }
         return result
     }
+
+    private fun formatDataType(type: String, length: Int, precision: Int, scale: Int): String =
+        when (type.trim().uppercase()) {
+            "CHARACTER", "CHAR"            -> "CHAR($length)"
+            "VARCHAR", "CHARACTER VARYING" -> "VARCHAR($length)"
+            "DECIMAL", "NUMERIC"           -> if (scale > 0) "DEC($precision,$scale)" else "DEC($precision)"
+            "INTEGER", "INT"               -> "INTEGER"
+            "SMALLINT"                     -> "SMALLINT"
+            "BIGINT"                       -> "BIGINT"
+            "FLOAT", "DOUBLE", "REAL"      -> type.uppercase()
+            "DATE"                         -> "DATE"
+            "TIME"                         -> "TIME"
+            "TIMESTAMP"                    -> "TIMESTAMP"
+            else                           -> type.ifBlank { "" }
+        }
 
     fun findTableDescription(name: String): String? =
         tableDescCache[name.uppercase()]?.takeIf { it.isNotBlank() }
@@ -196,10 +218,15 @@ class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposab
         """)
         stmt.execute("""
             CREATE TABLE IF NOT EXISTS QSYS2.SYSCOLUMNS (
-                TABLE_NAME   VARCHAR(128) NOT NULL,
-                TABLE_SCHEMA VARCHAR(128) NOT NULL,
-                COLUMN_NAME  VARCHAR(128) NOT NULL,
-                COLUMN_TEXT  VARCHAR(50)
+                TABLE_NAME        VARCHAR(128) NOT NULL,
+                TABLE_SCHEMA      VARCHAR(128) NOT NULL,
+                COLUMN_NAME       VARCHAR(128) NOT NULL,
+                COLUMN_TEXT       VARCHAR(50),
+                DATA_TYPE         VARCHAR(30),
+                LENGTH            INTEGER DEFAULT 0,
+                NUMERIC_PRECISION INTEGER DEFAULT 0,
+                NUMERIC_SCALE     INTEGER DEFAULT 0,
+                ORDINAL_POSITION  INTEGER DEFAULT 0
             )
         """)
     }
@@ -219,54 +246,58 @@ class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposab
             Triple("SALPYTBL", "HRLIB", "Gehaltszahlungen"),
         )
 
+        // name, desc, dataType, len, precision, scale
+        data class Col(val name: String, val desc: String, val type: String,
+                       val len: Int = 0, val prec: Int = 0, val scale: Int = 0)
+
         val columns = listOf(
             listOf("MYLIB", "CUSTTBL") to listOf(
-                "CUSTNBR" to "Kundennummer",
-                "CUSTNAM" to "Kundenname",
-                "CUSTADR" to "Kundenadresse",
-                "CUSTCTY" to "Stadt",
-                "CUSTZIP" to "Postleitzahl",
-                "CUSTCNT" to "Land",
-                "CUSTPHN" to "Telefonnummer",
-                "CUSTBAL" to "Kontostand",
-                "CREATDT" to "Erstellungsdatum",
+                Col("CUSTNBR", "Kundennummer",   "DECIMAL",   prec=7),
+                Col("CUSTNAM", "Kundenname",      "CHARACTER", len=30),
+                Col("CUSTADR", "Kundenadresse",   "CHARACTER", len=50),
+                Col("CUSTCTY", "Stadt",            "CHARACTER", len=25),
+                Col("CUSTZIP", "Postleitzahl",     "CHARACTER", len=10),
+                Col("CUSTCNT", "Land",             "CHARACTER", len=3),
+                Col("CUSTPHN", "Telefonnummer",    "CHARACTER", len=15),
+                Col("CUSTBAL", "Kontostand",       "DECIMAL",   prec=11, scale=2),
+                Col("CREATDT", "Erstellungsdatum", "DATE"),
             ),
             listOf("MYLIB", "ORDTBL") to listOf(
-                "ORDNBR"  to "Bestellnummer",
-                "CUSTNBR" to "Kundennummer",
-                "ORDDAT"  to "Bestelldatum",
-                "DELDAT"  to "Lieferdatum",
-                "ORDSTS"  to "Bestellstatus",
-                "ORDTOT"  to "Gesamtbetrag",
+                Col("ORDNBR",  "Bestellnummer",  "DECIMAL",   prec=9),
+                Col("CUSTNBR", "Kundennummer",   "DECIMAL",   prec=7),
+                Col("ORDDAT",  "Bestelldatum",   "DATE"),
+                Col("DELDAT",  "Lieferdatum",    "DATE"),
+                Col("ORDSTS",  "Bestellstatus",  "CHARACTER", len=1),
+                Col("ORDTOT",  "Gesamtbetrag",   "DECIMAL",   prec=11, scale=2),
             ),
             listOf("MYLIB", "ARTLST") to listOf(
-                "ARTNBR"  to "Artikelnummer",
-                "ARTDSC"  to "Artikelbeschreibung",
-                "ARTPRC"  to "Artikelpreis",
-                "ARTQTY"  to "Lagerbestand",
-                "ARTCAT"  to "Artikelkategorie",
+                Col("ARTNBR",  "Artikelnummer",      "DECIMAL",   prec=7),
+                Col("ARTDSC",  "Artikelbeschreibung", "VARCHAR",   len=100),
+                Col("ARTPRC",  "Artikelpreis",        "DECIMAL",   prec=9, scale=2),
+                Col("ARTQTY",  "Lagerbestand",        "INTEGER"),
+                Col("ARTCAT",  "Artikelkategorie",    "CHARACTER", len=10),
             ),
             listOf("MYLIB", "INVTBL") to listOf(
-                "INVNBR"  to "Rechnungsnummer",
-                "ORDNBR"  to "Bestellnummer",
-                "INVDAT"  to "Rechnungsdatum",
-                "INVAMT"  to "Rechnungsbetrag",
-                "PAYSTS"  to "Zahlungsstatus",
+                Col("INVNBR",  "Rechnungsnummer", "DECIMAL",   prec=9),
+                Col("ORDNBR",  "Bestellnummer",   "DECIMAL",   prec=9),
+                Col("INVDAT",  "Rechnungsdatum",  "DATE"),
+                Col("INVAMT",  "Rechnungsbetrag", "DECIMAL",   prec=11, scale=2),
+                Col("PAYSTS",  "Zahlungsstatus",  "CHARACTER", len=1),
             ),
             listOf("HRLIB", "EMPTBL") to listOf(
-                "EMPNBR"  to "Mitarbeiternummer",
-                "EMPFNM"  to "Vorname",
-                "EMPLNM"  to "Nachname",
-                "DEPTNBR" to "Abteilungsnummer",
-                "HIREDT"  to "Einstellungsdatum",
-                "JOBTTL"  to "Berufsbezeichnung",
-                "SALAMT"  to "Gehalt",
+                Col("EMPNBR",  "Mitarbeiternummer", "DECIMAL",   prec=7),
+                Col("EMPFNM",  "Vorname",            "CHARACTER", len=20),
+                Col("EMPLNM",  "Nachname",           "CHARACTER", len=30),
+                Col("DEPTNBR", "Abteilungsnummer",   "DECIMAL",   prec=5),
+                Col("HIREDT",  "Einstellungsdatum",  "DATE"),
+                Col("JOBTTL",  "Berufsbezeichnung",  "VARCHAR",   len=50),
+                Col("SALAMT",  "Gehalt",             "DECIMAL",   prec=9, scale=2),
             ),
             listOf("HRLIB", "DEPTTBL") to listOf(
-                "DEPTNBR" to "Abteilungsnummer",
-                "DEPTNM"  to "Abteilungsname",
-                "MGRNUM"  to "Managernummer",
-                "DEPTLOC" to "Standort",
+                Col("DEPTNBR", "Abteilungsnummer", "DECIMAL",   prec=5),
+                Col("DEPTNM",  "Abteilungsname",   "CHARACTER", len=30),
+                Col("MGRNUM",  "Managernummer",    "DECIMAL",   prec=7),
+                Col("DEPTLOC", "Standort",         "CHARACTER", len=25),
             ),
         )
 
@@ -280,13 +311,19 @@ class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposab
         tblStmt.executeBatch()
 
         val colStmt = connection!!.prepareStatement(
-            "INSERT INTO QSYS2.SYSCOLUMNS (TABLE_NAME, TABLE_SCHEMA, COLUMN_NAME, COLUMN_TEXT) VALUES (?, ?, ?, ?)"
+            """INSERT INTO QSYS2.SYSCOLUMNS
+               (TABLE_NAME, TABLE_SCHEMA, COLUMN_NAME, COLUMN_TEXT,
+                DATA_TYPE, LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, ORDINAL_POSITION)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"""
         )
         columns.forEach { (key, cols) ->
             val (schema, tableName) = key
-            cols.forEach { (colName, colText) ->
+            cols.forEachIndexed { idx, col ->
                 colStmt.setString(1, tableName); colStmt.setString(2, schema)
-                colStmt.setString(3, colName);   colStmt.setString(4, colText)
+                colStmt.setString(3, col.name);  colStmt.setString(4, col.desc)
+                colStmt.setString(5, col.type);  colStmt.setInt(6, col.len)
+                colStmt.setInt(7, col.prec);     colStmt.setInt(8, col.scale)
+                colStmt.setInt(9, idx + 1)
                 colStmt.addBatch()
             }
         }
