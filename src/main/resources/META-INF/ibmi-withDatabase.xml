@@ -1,0 +1,6 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <lang.documentationProvider language="SQL"
+            implementationClass="org.jetbrains.plugins.template.documentation.IbmiDocumentationProvider"/>
+    </extensions>
+</idea-plugin>
