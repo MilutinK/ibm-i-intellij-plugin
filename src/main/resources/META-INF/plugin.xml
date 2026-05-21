@@ -1,0 +1,17 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>com.kojic.ibmi</id>
+    <name>IBM i Helper</name>
+    <vendor>Kojic</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow factoryClass="com.github.milutink.ibmiintellijplugin.toolWindow.MyToolWindowFactory"
+                    id="IBM i Helper"
+                    anchor="right"/>
+        <postStartupActivity implementation="com.github.milutink.ibmiintellijplugin.hover.IbmiHoverActivity" />
+        <projectService serviceImplementation="com.github.milutink.ibmiintellijplugin.services.DatabaseService"/>
+        <projectService serviceImplementation="com.github.milutink.ibmiintellijplugin.hover.IbmiHoverService"/>
+    </extensions>
+</idea-plugin>
