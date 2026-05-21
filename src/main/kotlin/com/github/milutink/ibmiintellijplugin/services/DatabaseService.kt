@@ -194,6 +194,9 @@ class DatabaseService(@Suppress("UNUSED_PARAMETER") project: Project) : Disposab
     fun findColumnDescription(name: String): String? =
         columnDescCache[name.uppercase()]?.takeIf { it.isNotBlank() }
 
+    fun getTableCompletions(): Map<String, String> = tableDescCache.toMap()
+    fun getColumnCompletions(): Map<String, String> = columnDescCache.toMap()
+
     fun disconnect() {
         connection?.close()
         connection = null

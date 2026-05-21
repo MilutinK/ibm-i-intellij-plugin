@@ -62,6 +62,12 @@ class IbmiPanel(private val project: Project) {
     private val disconnectButton = JButton("Trennen").also { it.isEnabled = false }
     private val statusLabel      = JBLabel("Nicht verbunden")
 
+    // --- Profiles ---
+    private val profileComboBox     = JComboBox<String>().also { it.isEditable = true }
+    private val saveProfileButton   = JButton("Speichern")
+    private val deleteProfileButton = JButton("Löschen")
+    private var suppressProfileLoad = false
+
     // --- Results ---
     private val tableModel  = DefaultTableModel(arrayOf("Tabelle", "Schema", "Beschreibung"), 0)
     private val resultTable = JBTable(tableModel).also { it.isStriped = true }
@@ -85,6 +91,7 @@ class IbmiPanel(private val project: Project) {
         }
 
         updateFieldVisibility()
+        refreshProfileComboBox()
     }
 
     private fun buildUI(): JPanel {
@@ -97,6 +104,14 @@ class IbmiPanel(private val project: Project) {
         testModeCheckbox.addActionListener { updateFieldVisibility() }
         connectButton.addActionListener    { onConnect() }
         disconnectButton.addActionListener { onDisconnect() }
+        saveProfileButton.addActionListener   { onSaveProfile() }
+        deleteProfileButton.addActionListener { onDeleteProfile() }
+        profileComboBox.addItemListener { e ->
+            if (!suppressProfileLoad && e.stateChange == java.awt.event.ItemEvent.SELECTED) {
+                val name = (e.item as? String)?.trim() ?: ""
+                if (name.isNotBlank()) loadProfile(name)
+            }
+        }
 
         resultTable.selectionModel.addListSelectionListener {
             if (!it.valueIsAdjusting) onTableSelected()
@@ -151,6 +166,14 @@ class IbmiPanel(private val project: Project) {
             gridwidth = 1; weightx = 1.0; gridx = 0
         }
         var row = 0
+
+        val profileRow = JPanel(GridBagLayout())
+        val pgbc = GridBagConstraints().apply { fill = GridBagConstraints.HORIZONTAL; insets = Insets(3, 4, 3, 4) }
+        pgbc.gridx = 0; pgbc.weightx = 0.0; profileRow.add(JBLabel("Profil:"), pgbc)
+        pgbc.gridx = 1; pgbc.weightx = 1.0; profileRow.add(profileComboBox, pgbc)
+        pgbc.gridx = 2; pgbc.weightx = 0.0; profileRow.add(saveProfileButton, pgbc)
+        pgbc.gridx = 3; pgbc.weightx = 0.0; profileRow.add(deleteProfileButton, pgbc)
+        gbc.gridy = row++; panel.add(profileRow, gbc)
 
         gbc.gridy = row++; panel.add(testModeCheckbox, gbc)
         gbc.gridy = row++; panel.add(ibmiFieldsPanel, gbc)
@@ -363,5 +386,78 @@ class IbmiPanel(private val project: Project) {
 
     private fun copyToClipboard(text: String) {
         Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+    }
+
+    // --- Profile management ------------------------------------------------
+
+    private fun profileKey(name: String, field: String) = "ibmi.profile.$name.$field"
+
+    private fun loadProfileNames(): List<String> =
+        prefs.getValue("ibmi.profiles", "").split("|").filter { it.isNotBlank() }
+
+    private fun saveProfileNames(names: List<String>) =
+        prefs.setValue("ibmi.profiles", names.distinct().joinToString("|"))
+
+    private fun refreshProfileComboBox() {
+        suppressProfileLoad = true
+        try {
+            val current = (profileComboBox.editor.item as? String) ?: ""
+            profileComboBox.removeAllItems()
+            profileComboBox.addItem("")
+            loadProfileNames().forEach { profileComboBox.addItem(it) }
+            val names = loadProfileNames()
+            if (current.isNotBlank() && names.contains(current)) profileComboBox.selectedItem = current
+            else profileComboBox.selectedIndex = 0
+        } finally {
+            suppressProfileLoad = false
+        }
+    }
+
+    private fun loadProfile(name: String) {
+        testModeCheckbox.isSelected = prefs.getBoolean(profileKey(name, "testMode"), true)
+        hostField.text   = prefs.getValue(profileKey(name, "host"),    "")
+        portField.text   = prefs.getValue(profileKey(name, "port"),    "446")
+        userField.text   = prefs.getValue(profileKey(name, "user"),    "")
+        schemaField.text = prefs.getValue(profileKey(name, "schemas"), "")
+        val user = userField.text
+        if (user.isNotEmpty()) {
+            val pw = PasswordSafe.instance.getPassword(CredentialAttributes("IBM i Helper/$name", user))
+            if (pw != null) passwordField.text = pw
+        }
+        updateFieldVisibility()
+    }
+
+    private fun onSaveProfile() {
+        val name = (profileComboBox.editor.item as? String)?.trim()?.replace("|", "") ?: ""
+        if (name.isEmpty()) {
+            JOptionPane.showMessageDialog(root, "Bitte Profilnamen eingeben.", "Profil speichern", JOptionPane.WARNING_MESSAGE)
+            return
+        }
+        prefs.setValue(profileKey(name, "host"),     hostField.text.trim())
+        prefs.setValue(profileKey(name, "port"),     portField.text.trim())
+        prefs.setValue(profileKey(name, "user"),     userField.text.trim())
+        prefs.setValue(profileKey(name, "schemas"),  schemaField.text.trim())
+        prefs.setValue(profileKey(name, "testMode"), testModeCheckbox.isSelected)
+        val user = userField.text.trim()
+        val password = String(passwordField.password)
+        if (user.isNotEmpty() && password.isNotEmpty()) {
+            PasswordSafe.instance.set(
+                CredentialAttributes("IBM i Helper/$name", user),
+                Credentials(user, password)
+            )
+        }
+        saveProfileNames(loadProfileNames() + name)
+        refreshProfileComboBox()
+        suppressProfileLoad = true
+        try { profileComboBox.selectedItem = name } finally { suppressProfileLoad = false }
+    }
+
+    private fun onDeleteProfile() {
+        val name = (profileComboBox.selectedItem as? String)?.trim()?.takeIf { it.isNotBlank() } ?: return
+        saveProfileNames(loadProfileNames().filter { it != name })
+        listOf("host", "port", "user", "schemas", "testMode").forEach {
+            prefs.unsetValue(profileKey(name, it))
+        }
+        refreshProfileComboBox()
     }
 }

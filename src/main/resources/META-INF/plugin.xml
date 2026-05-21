@@ -5,6 +5,7 @@
     <vendor>Kojic</vendor>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="ibmi-withDatabase.xml">com.intellij.database</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow factoryClass="com.github.milutink.ibmiintellijplugin.toolWindow.MyToolWindowFactory"
@@ -15,5 +16,7 @@
         <projectService serviceImplementation="com.github.milutink.ibmiintellijplugin.hover.IbmiHoverService"/>
         <statusBarWidgetFactory implementation="com.github.milutink.ibmiintellijplugin.statusBar.IbmiStatusBarWidgetFactory"
                                 id="IbmiConnectionStatus"/>
+        <completion.contributor language="any"
+                                implementationClass="com.github.milutink.ibmiintellijplugin.completion.IbmiCompletionContributor"/>
     </extensions>
 </idea-plugin>
