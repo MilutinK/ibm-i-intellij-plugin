@@ -1,51 +1,81 @@
-# ibm-i-intellij-plugin
+# IBM i Helper – IntelliJ Plugin
 
 ![Build](https://github.com/MilutinK/ibm-i-intellij-plugin/workflows/Build/badge.svg)
-[![Version](https://img.shields.io/jetbrains/plugin/v/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
 
-## Template ToDo list
-- [x] Create a new [IntelliJ Platform Plugin Template][template] project.
-- [ ] Get familiar with the [template documentation][template].
-- [ ] Adjust the [group](./gradle.properties), as well as the [id](./src/main/resources/META-INF/plugin.xml), [name](./src/main/resources/META-INF/plugin.xml), and [sources package](./src/main/kotlin).
-- [ ] Adjust the plugin description in `README` (see [Tips][docs:plugin-description])
-- [ ] Review the [Legal Agreements](https://plugins.jetbrains.com/docs/marketplace/legal-agreements.html?from=IJPluginTemplate).
-- [ ] [Publish a plugin manually](https://plugins.jetbrains.com/docs/intellij/publishing-plugin.html?from=IJPluginTemplate) for the first time.
-- [ ] Set the `MARKETPLACE_ID` in the above README badges. You can obtain it once the plugin is published to JetBrains Marketplace.
-- [ ] Set the [Plugin Signing](https://plugins.jetbrains.com/docs/intellij/plugin-signing.html?from=IJPluginTemplate) related [secrets](https://github.com/JetBrains/intellij-platform-plugin-template#environment-variables).
-- [ ] Set the [Deployment Token](https://plugins.jetbrains.com/docs/marketplace/plugin-upload.html?from=IJPluginTemplate).
-- [ ] Click the <kbd>Watch</kbd> button on the top of the [IntelliJ Platform Plugin Template][template] to be notified about releases containing new features and fixes.
+Ein IntelliJ IDEA Plugin für IBM i (AS/400) Entwickler.
+
+IBM i Datenbanktabellen und -spalten haben kryptische Kurznamen mit maximal 10 Zeichen (z.B. `CUSTNBR`, `ORDDAT`, `EMPLNM`). Im IBM i System-Katalog (`QSYS2.SYSTABLES`, `QSYS2.SYSCOLUMNS`) sind lesbare Beschreibungen hinterlegt. Dieses Plugin holt diese Beschreibungen per JDBC und zeigt sie direkt in IntelliJ an – ohne Kontextwechsel zur IBM i Konsole oder Dokumentation.
 
 <!-- Plugin description -->
-This Fancy IntelliJ Platform Plugin is going to be your implementation of the brilliant ideas that you have.
+**IBM i Helper** zeigt Beschreibungen zu IBM i Tabellen und Spalten direkt in IntelliJ IDEA an.
 
-This specific section is a source for the [plugin.xml](/src/main/resources/META-INF/plugin.xml) file which will be extracted by the [Gradle](/build.gradle.kts) during the build process.
-
-To keep everything working, do not remove `<!-- ... -->` sections. 
+**Features:**
+- **Tool Window** mit Verbindungsformular (Host, Port, Benutzer, Passwort, Bibliotheken-Filter)
+- **Tabellen- und Spaltenanzeige** mit Beschreibungen aus dem QSYS2-Katalog
+- **Live-Suche** über Tabellennamen und Beschreibungen
+- **Hover-Tooltips** im Editor: über einen IBM i Spalten- oder Tabellennamen hovern zeigt die Beschreibung als Balloon
+- **Persistente Verbindungseinstellungen** (Passwort via PasswordSafe verschlüsselt)
+- **Bibliotheken-Filter** für gezielte Abfragen (kommagetrennt, z.B. `MYLIB,HRLIB`)
+- **Test-Modus** mit H2 In-Memory Datenbank – kein IBM i System nötig
 <!-- Plugin description end -->
+
+## Screenshots
+
+### Tool Window
+Das Tool Window zeigt alle Tabellen und Spalten der verbundenen IBM i Bibliotheken mit ihren Beschreibungen.
+
+### Hover-Tooltip
+Nach dem Verbinden zeigt ein Hover über einem IBM i Feldnamen im Editor automatisch die Beschreibung aus dem Systemkatalog.
+
+## Voraussetzungen
+
+- IntelliJ IDEA 2026.1 oder neuer
+- Zugang zu einem IBM i System (oder Test-Modus verwenden)
+- Java 21
 
 ## Installation
 
-- Using the IDE built-in plugin system:
+**Manuell (aus Release):**
 
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "ibm-i-intellij-plugin"</kbd> >
-  <kbd>Install</kbd>
+1. Unter [Releases](https://github.com/MilutinK/ibm-i-intellij-plugin/releases/latest) die aktuelle `.zip`-Datei herunterladen
+2. In IntelliJ: <kbd>Settings</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install Plugin from Disk...</kbd>
 
-- Using JetBrains Marketplace:
+## Verwendung
 
-  Go to [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID) and install it by clicking the <kbd>Install to ...</kbd> button in case your IDE is running.
+1. Tool Window **IBM i Helper** öffnen (standardmäßig rechts angedockt)
+2. Verbindungsdaten eingeben:
+   - **Host**: IBM i Hostname oder IP (z.B. `pub400.com`)
+   - **Port**: Standard `446` (SSL)
+   - **Benutzer / Passwort**: IBM i Credentials
+   - **Bibliotheken**: Kommagetrennte Liste der Bibliotheken (z.B. `MYLIB,HRLIB`) – **Pflichtfeld für IBM i Verbindungen**
+3. **Verbinden** klicken
+4. Tabellen und Spalten werden geladen und der Hover-Tooltip ist aktiv
 
-  You can also download the [latest release](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID/versions) from JetBrains Marketplace and install it manually using
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
+**Test-Modus:** Die Checkbox „Test-Modus (H2)" aktivieren – verbindet ohne IBM i mit einer lokalen In-Memory Datenbank mit Beispieldaten.
 
-- Manually:
+## Entwicklung
 
-  Download the [latest release](https://github.com/MilutinK/ibm-i-intellij-plugin/releases/latest) and install it manually using
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
+```bash
+# Plugin in Sandbox starten
+./gradlew runIde
 
+# Plugin bauen
+./gradlew buildPlugin
 
----
-Plugin based on the [IntelliJ Platform Plugin Template][template].
+# Tests ausführen
+./gradlew test
 
-[template]: https://github.com/JetBrains/intellij-platform-plugin-template
-[docs:plugin-description]: https://plugins.jetbrains.com/docs/intellij/plugin-user-experience.html#plugin-description-and-presentation
+# Bei Sandbox-Problemen (stale state)
+./gradlew clean runIde
+```
+
+## Tech Stack
+
+- Kotlin + Gradle (Kotlin DSL)
+- IntelliJ Platform Gradle Plugin 2.x
+- [JTOpen](https://github.com/IBM/JTOpen) (`net.sf.jt400:jt400`) – IBM i JDBC Treiber
+- H2 In-Memory DB für den Test-Modus
+
+## Lizenz
+
+[Apache License 2.0](LICENSE)
