@@ -4,7 +4,7 @@ rootProject.name = "ibm-i-intellij-plugin"
 
 pluginManagement {
     plugins {
-        id("org.jetbrains.kotlin.jvm") version "2.2.0"
+        id("org.jetbrains.kotlin.jvm") version "2.4.10"
         id("org.jetbrains.changelog") version "2.5.0"
     }
 }
