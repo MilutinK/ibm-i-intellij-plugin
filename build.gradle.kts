@@ -10,7 +10,7 @@ plugins {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    implementation("net.sf.jt400:jt400:20.0.7")
+    implementation("net.sf.jt400:jt400:21.0.7")
 
     intellijPlatform {
         intellijIdea("2026.1.1")
